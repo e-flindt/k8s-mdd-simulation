@@ -214,12 +214,6 @@ public class Main {
 		// adding the meta model again will trigger the creation of a new version
 		log("### Changing microservice meta model:");
 		repo.addArtifact(microservice);
-//		log("### Relevant change:");
-//		repo.addArtifact(microservice);
-//		log("### Relevant change:");
-//		repo.addArtifact(microservice);
-//		log("### Relevant change:");
-//		repo.addArtifact(microservice);
 	}
 
 	public static void example3() {
