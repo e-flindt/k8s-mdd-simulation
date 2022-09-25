@@ -249,16 +249,15 @@ public class Main {
 			.updateDependency(springBootPlatform.version().increment()).build());
 	}
 	
-	public static void onChange(Repository repo, Artifact a) {
-		for (ArtifactVersion metamodel : a.getMetamodels()) {
+	public static void onChange(Repository repo, ArtifactVersion version) {
+		for (ArtifactVersion metamodel : repo.getMetamodels(version)) {
 			for (Transformation transformation : repo.getAcceptingTransformations(metamodel)) {
-				transformation.getTransformation().apply(a).ifPresent(repo::commit);
+				transformation.getTransformation().apply(repo.get(version)).ifPresent(repo::commit);
 			}
 		}
-		for (ArtifactVersion metamodel : a.getInputs()) {
+		for (ArtifactVersion metamodel : repo.getInputs(version)) {
 			for (Artifact model : repo.getInstances(metamodel)) {
-				a.asTransformation()
-					.map(Transformation::getTransformation)
+				repo.get(version).asTransformation().map(Transformation::getTransformation)
 					.flatMap(t -> t.apply(model)).ifPresent(repo::commit);
 			}
 		}
@@ -426,19 +425,37 @@ public class Main {
 		
 		private Map<ArtifactVersion, Artifact> artifactsByVersion = new HashMap<>();
 		
-		public Set<Artifact> getInstances(ArtifactVersion artifact) {
+		public Artifact get(ArtifactVersion version) {
+			return artifactsByVersion.get(version);
+		}
+		
+		public Set<Artifact> getInstances(ArtifactVersion version) {
 			return artifactsByVersion.values().stream()
 				// find any model that has declared the argument as meta model
-				.filter(m1 -> m1.getMetamodels().contains(artifact))
+				.filter(m1 -> m1.getMetamodels().contains(version))
 				.collect(Collectors.toSet());
 		}
 		
-		public Set<Transformation> getAcceptingTransformations(ArtifactVersion artifact) {
+		public Set<ArtifactVersion> getMetamodels(ArtifactVersion version) {
+			return Optional.ofNullable(version)
+				.map(artifactsByVersion::get)
+				.map(Artifact::getMetamodels)
+				.orElse(Collections.emptySet());
+		}
+		
+		public Set<ArtifactVersion> getInputs(ArtifactVersion version) {
+			return Optional.ofNullable(version)
+				.map(artifactsByVersion::get)
+				.map(Artifact::getInputs)
+				.orElse(Collections.emptySet());
+		}
+		
+		public Set<Transformation> getAcceptingTransformations(ArtifactVersion version) {
 			return artifactsByVersion.values().stream().map(Artifact::asTransformation)
 				// find any transformation that has declared the argument as an input
 				.filter(Optional::isPresent)
 				.map(Optional::get)
-				.filter(t -> t.getInputs().contains(artifact))
+				.filter(t -> t.getInputs().contains(version))
 				.collect(Collectors.toSet());
 		}
 		
@@ -450,7 +467,7 @@ public class Main {
 			Artifact newVersion = copyArtifact(a).withVersion(version).build();
 			artifactsByVersion.put(newVersion.version(), newVersion);
 			log("[COMMIT] " + newVersion);
-			onChange(this, newVersion);
+			onChange(this, newVersion.version());
 		}
 		
 		public void commit(Artifact... a) {
