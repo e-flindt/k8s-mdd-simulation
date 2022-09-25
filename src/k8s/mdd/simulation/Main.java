@@ -103,7 +103,7 @@ public class Main {
 			}
 			return Optional.empty();
 		}).build();
-	private static final Artifact transCoEvGen = buildTransformation("transCoEvGen").withDependency(coEvM.version())
+	private static final Artifact trafoCoEvGen = buildTransformation("trafoCoEvGen").withDependency(coEvM.version())
 		.withTransformation(m -> {
 			if (m instanceof CoEvolutionModel coev) {
 				ArtifactVersion changedArtifact = coev.getChangedArtifact();
@@ -158,7 +158,7 @@ public class Main {
 	}
 
 	public static void example2() {
-		repo.addArtifacts(ecore, trafoMM, java, coEvModelGen, modelCoEvGen, transCoEvGen, microservice,
+		repo.addArtifacts(ecore, trafoMM, java, coEvModelGen, modelCoEvGen, trafoCoEvGen, microservice,
 			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
 			orderMicroservice, microserviceToPython);
 		repo.addArtifact(microservice);
