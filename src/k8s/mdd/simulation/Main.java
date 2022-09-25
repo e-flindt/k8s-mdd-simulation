@@ -425,15 +425,6 @@ public class Main {
 				.collect(Collectors.toSet());
 		}
 		
-		public Set<Transformation> getDependingTransformations(ArtifactVersion artifact) {
-			return artifactsByVersion.values().stream().map(Artifact::asTransformation)
-				// find any transformation that has declared the argument as a dependency
-				.filter(Optional::isPresent)
-				.map(Optional::get)
-				.filter(t -> t.getInputs().contains(artifact) || t.getOutputs().contains(artifact))
-				.collect(Collectors.toSet());
-		}
-		
 		public Set<Transformation> getAcceptingTransformations(ArtifactVersion artifact) {
 			return artifactsByVersion.values().stream().map(Artifact::asTransformation)
 				// find any transformation that has declared the argument as an input
@@ -443,18 +434,6 @@ public class Main {
 				.collect(Collectors.toSet());
 		}
 		
-		public Optional<Artifact> getByVersion(ArtifactVersion version) {
-			return Optional.ofNullable(artifactsByVersion.get(version));
-		}
-		
-		public boolean containsByVersion(ArtifactVersion version) {
-			return artifactsByVersion.containsKey(version);
-		}
-
-		public Optional<Artifact> getNextVersion(Artifact a) {
-			return Optional.ofNullable(artifactsByVersion.get(a.version().increment()));
-		}
-		
 		public void addArtifact(Artifact a) {
 			ArtifactVersion version = a.version();
 			while (artifactsByVersion.containsKey(version)) {
@@ -462,7 +441,7 @@ public class Main {
 			}			
 			Artifact newVersion = copyArtifact(a).withVersion(version).build();
 			artifactsByVersion.put(newVersion.version(), newVersion);
-			log("[ADD] Added " + newVersion);
+			log("[COMMIT] " + newVersion);
 			onChange(this, newVersion);
 		}
 		
