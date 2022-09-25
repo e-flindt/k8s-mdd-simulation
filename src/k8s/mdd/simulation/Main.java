@@ -197,61 +197,61 @@ public class Main {
 	}
 	
 	public static void example1() {
-		repo.addArtifacts(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline, springBootPlatform,
+		repo.commit(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline, springBootPlatform,
 			dotNetPlatform, pythonPlatform, microservice, microserviceToSpringBoot, microserviceToDotNet,
 			customerMicroservice, shoppingCartMicroservice, orderMicroservice, microserviceToPython);
 		log("### Changing microservice meta model and migrating Spring Boot generator manually:");
-		repo.addArtifact(microservice);
-		repo.addArtifact(copyArtifact(customerMicroservice).updateMetamodel(microservice.version().increment()).build());
-		repo.addArtifact(copyArtifact(microserviceToSpringBoot).updateDependency(microservice.version().increment()).build());
+		repo.commit(microservice);
+		repo.commit(copyArtifact(customerMicroservice).updateMetamodel(microservice.version().increment()).build());
+		repo.commit(copyArtifact(microserviceToSpringBoot).updateDependency(microservice.version().increment()).build());
 	}
 
 	public static void example2() {
-		repo.addArtifacts(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline,
+		repo.commit(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline,
 			springBootPlatform, dotNetPlatform, pythonPlatform, coEvModelGen, modelCoEvGen, trafoCoEvGen, microservice,
 			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
 			orderMicroservice, microserviceToPython);
 		// adding the meta model again will trigger the creation of a new version
 		log("### Changing microservice meta model:");
-		repo.addArtifact(microservice);
+		repo.commit(microservice);
 	}
 
 	public static void example3() {
-		repo.addArtifacts(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline,
+		repo.commit(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline,
 			springBootPlatform, dotNetPlatform, pythonPlatform, coEvModelGen, modelCoEvGen, trafoCoEvGen, microservice,
 			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
 			orderMicroservice, microserviceToPython);
 		log("### Changing Spring Boot platform:");
 		// update the platform
-		repo.addArtifact(springBootPlatform);
+		repo.commit(springBootPlatform);
 		// update the generator
-		repo.addArtifact(
+		repo.commit(
 			copyArtifact(microserviceToSpringBoot).updateDependency(springBootPlatform.version().increment()).build());
 	}
 
 	public static void example4() {
-		repo.addArtifacts(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline,
+		repo.commit(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline,
 			springBootPlatform, dotNetPlatform, pythonPlatform, coEvModelGen, modelCoEvGen, trafoCoEvGen, microservice,
 			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
 			orderMicroservice, microserviceToPython);
 		log("### Changing Java version and migrating Spring Boot platform, Java build pipeline and Spring Boot Generator manually:");
 		// update java
-		repo.addArtifact(java);
+		repo.commit(java);
 		// manual co-evolution
-		repo.addArtifact(copyArtifact(springBootPlatform).updateMetamodel(java.version().increment()).build());
-		repo.addArtifact(copyArtifact(javaBuildPipeline).updateDependency(java.version().increment()).build());
-		repo.addArtifact(copyArtifact(microserviceToSpringBoot).updateDependency(springBootPlatform.version().increment()).build());
+		repo.commit(copyArtifact(springBootPlatform).updateMetamodel(java.version().increment()).build());
+		repo.commit(copyArtifact(javaBuildPipeline).updateDependency(java.version().increment()).build());
+		repo.commit(copyArtifact(microserviceToSpringBoot).updateDependency(springBootPlatform.version().increment()).build());
 	}
 	
 	public static void onChange(Repository repo, Artifact a) {
 		for (ArtifactVersion metamodel : a.getMetamodels()) {
 			for (Transformation transformation : repo.getAcceptingTransformations(metamodel)) {
-				transformation.getTransformation().apply(a).ifPresent(repo::addArtifact);
+				transformation.getTransformation().apply(a).ifPresent(repo::commit);
 			}
 		}
 		for (ArtifactVersion metamodel : a.getInputs()) {
 			for (Artifact model : repo.getInstances(metamodel)) {
-				a.asTransformation().map(Transformation::getTransformation).flatMap(t -> t.apply(model)).ifPresent(repo::addArtifact);
+				a.asTransformation().map(Transformation::getTransformation).flatMap(t -> t.apply(model)).ifPresent(repo::commit);
 			}
 		}
 	}
@@ -434,7 +434,7 @@ public class Main {
 				.collect(Collectors.toSet());
 		}
 		
-		public void addArtifact(Artifact a) {
+		public void commit(Artifact a) {
 			ArtifactVersion version = a.version();
 			while (artifactsByVersion.containsKey(version)) {
 				version = version.increment();
@@ -445,8 +445,8 @@ public class Main {
 			onChange(this, newVersion);
 		}
 		
-		public void addArtifacts(Artifact... a) {
-			Arrays.asList(a).forEach(this::addArtifact);
+		public void commit(Artifact... a) {
+			Arrays.asList(a).forEach(this::commit);
 		}
 		
 	}
