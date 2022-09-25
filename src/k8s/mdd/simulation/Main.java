@@ -30,7 +30,7 @@ public class Main {
 		System.out.println(message);
 	}
 	
-	private static final Repository repo = new Repository();
+	private static final Repository repo = new RepositoryImpl();
 	
 	// basic setup
 	private static final Artifact executable = buildArtifact("executable").build();
@@ -421,14 +421,34 @@ public class Main {
 		
 	}
 	
-	public static class Repository {
+	public interface Repository {
+
+		Artifact get(ArtifactVersion version);
+
+		Set<Artifact> getInstances(ArtifactVersion version);
+
+		Set<ArtifactVersion> getMetamodels(ArtifactVersion version);
+
+		Set<ArtifactVersion> getInputs(ArtifactVersion version);
+
+		Set<Transformation> getAcceptingTransformations(ArtifactVersion version);
+
+		void commit(Artifact a);
+
+		void commit(Artifact... a);
+
+	}
+	
+	public static class RepositoryImpl implements Repository {
 		
 		private Map<ArtifactVersion, Artifact> artifactsByVersion = new HashMap<>();
 		
+		@Override
 		public Artifact get(ArtifactVersion version) {
 			return artifactsByVersion.get(version);
 		}
 		
+		@Override
 		public Set<Artifact> getInstances(ArtifactVersion version) {
 			return artifactsByVersion.values().stream()
 				// find any model that has declared the argument as meta model
@@ -436,6 +456,7 @@ public class Main {
 				.collect(Collectors.toSet());
 		}
 		
+		@Override
 		public Set<ArtifactVersion> getMetamodels(ArtifactVersion version) {
 			return Optional.ofNullable(version)
 				.map(artifactsByVersion::get)
@@ -443,6 +464,7 @@ public class Main {
 				.orElse(Collections.emptySet());
 		}
 		
+		@Override
 		public Set<ArtifactVersion> getInputs(ArtifactVersion version) {
 			return Optional.ofNullable(version)
 				.map(artifactsByVersion::get)
@@ -450,6 +472,7 @@ public class Main {
 				.orElse(Collections.emptySet());
 		}
 		
+		@Override
 		public Set<Transformation> getAcceptingTransformations(ArtifactVersion version) {
 			return artifactsByVersion.values().stream().map(Artifact::asTransformation)
 				// find any transformation that has declared the argument as an input
@@ -459,6 +482,7 @@ public class Main {
 				.collect(Collectors.toSet());
 		}
 		
+		@Override
 		public void commit(Artifact a) {
 			ArtifactVersion version = a.version();
 			while (artifactsByVersion.containsKey(version)) {
@@ -470,6 +494,7 @@ public class Main {
 			onChange(this, newVersion.version());
 		}
 		
+		@Override
 		public void commit(Artifact... a) {
 			Arrays.asList(a).forEach(this::commit);
 		}
