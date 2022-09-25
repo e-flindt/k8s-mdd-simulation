@@ -19,7 +19,7 @@ public class Main {
 	static {
 		examples.put(1, new Example("Ecosystem with manual co-evolution support", Main::example1));
 		examples.put(2, new Example("Ecosystem with support for semi-automatic model and transformation co-evolution", Main::example2));
-		examples.put(3, new Example("Ecosystem with manual co-evolution support and plattform changes", Main::example3));
+		examples.put(3, new Example("Ecosystem with manual co-evolution support and platform changes", Main::example3));
 	}
 	
 	private static final void log(String message) {
