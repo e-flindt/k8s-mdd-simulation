@@ -161,6 +161,7 @@ public class Main {
 		repo.addArtifacts(ecore, trafoMM, java, coEvModelGen, modelCoEvGen, trafoCoEvGen, microservice,
 			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
 			orderMicroservice, microserviceToPython);
+		// adding the meta model again will trigger the creation of a new version
 		repo.addArtifact(microservice);
 	}
 
