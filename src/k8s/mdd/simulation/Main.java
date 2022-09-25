@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 
 public class Main {
 	
+	private static boolean debug = false;
+	
 	private static record Example(String description, Runnable runnable) {}
 	
 	private static final Map<Integer, Example> examples = new HashMap<>();
@@ -20,8 +22,8 @@ public class Main {
 	static {
 		examples.put(1, new Example("Ecosystem with manual co-evolution support where a meta model is changed", Main::example1));
 		examples.put(2, new Example("Ecosystem with support for semi-automatic model and transformation co-evolution where a meta model is changed", Main::example2));
-		examples.put(3, new Example("Ecosystem with manual co-evolution support where a platform is changed", Main::example3));
-		examples.put(4, new Example("Ecosystem with support for semi-automatic model and transformation co-evolution where a platform is changed", Main::example4));
+		examples.put(3, new Example("Ecosystem with support for semi-automatic model and transformation co-evolution where a platform is changed", Main::example3));
+		examples.put(4, new Example("Ecosystem with support for semi-automatic model and transformation co-evolution where the java version is changed", Main::example4));
 	}
 	
 	private static final void log(String message) {
@@ -31,19 +33,43 @@ public class Main {
 	private static final Repository repo = new Repository();
 	
 	// basic setup
+	private static final Artifact executable = buildArtifact("executable").build();
+	private static final Artifact deploymentPipeline = buildTransformation("deploymentPipeline")
+		.withInput(executable.version())
+		.withTransformation(m -> {
+			log("[DEPLOY] Integration testing and deploying " + m.version());
+			return Optional.empty();
+		})
+		.build();
+	private static final Artifact sourceCode = buildArtifact("sourceCode").build();
 	private static final Artifact ecore = buildArtifact("ecore").build();
 	private static final Artifact trafoMM = buildArtifact("trafoMM").build();
-	private static final Artifact java = buildArtifact("java").build();
 	
-	private static final Artifact springBootPlatform = buildArtifact("springBoot").withMetamodel(ecore.version()).build();
-	private static final Artifact dotNetPlatform = buildArtifact("dotNet").withMetamodel(ecore.version()).build();
-	private static final Artifact pythonPlatform = buildArtifact("python").withMetamodel(ecore.version()).build();
+	// java stuff
+	private static final Artifact java = buildArtifact("java").withMetamodel(sourceCode.version()).build();	
+	private static final Artifact javaBuildPipeline = buildTransformation("javaBuildPipeline")
+		.withInput(java.version())
+		.withOutput(executable.version())
+		.withTransformation(m -> {
+			log("[BUILD] Unit testing and building " + m.version());
+			return Optional.of(buildArtifact(String.format("%sVer%s.jar", m.version().name(), m.version().version()))
+				.withMetamodel(executable.version())
+				.build());
+		})
+		.build();
 	
+	// platforms
+	private static final Artifact springBootPlatform = buildArtifact("springBoot").build();
+	private static final Artifact dotNetPlatform = buildArtifact("dotNet").build();
+	private static final Artifact pythonPlatform = buildArtifact("python").build();
+	
+	// microservice meta model and instances
 	private static final Artifact microservice = buildArtifact("microservice").withMetamodel(ecore.version()).build();
 	private static final Artifact customerMicroservice = buildArtifact("customerMicroservice").withMetamodel(microservice.version()).build();
 	private static final Artifact shoppingCartMicroservice = buildArtifact("shoppingCardMicroservice").withMetamodel(microservice.version()).build();
 	private static final Artifact orderMicroservice = buildArtifact("orderMicroservice").withMetamodel(microservice.version()).build();
 	
+	// microservice generators
 	private static final Artifact microserviceToSpringBoot = buildTransformation("microserviceToSpringBoot")
 		.withMetamodel(trafoMM.version())
 		.withInput(microservice.version())
@@ -59,7 +85,7 @@ public class Main {
 		.withOutput(dotNetPlatform.version())
 		.withTransformation(m -> {
 			log("[M2T] Generating Dot Net microservices for model " + m.version());
-			return Optional.of(buildArtifact(m.version().name() + "DotNetGen").withMetamodel(java.version()).build());
+			return Optional.of(buildArtifact(m.version().name() + "DotNetGen").withMetamodel(sourceCode.version()).build());
 		})
 		.build();
 	private static final Artifact microserviceToPython = buildTransformation("microserviceToPython")
@@ -68,7 +94,7 @@ public class Main {
 		.withOutput(pythonPlatform.version())
 		.withTransformation(m -> {
 			log("[M2T] Generating Python microservices for model " + m.version());
-			return Optional.of(buildArtifact(m.version().name() + "PythonGen").withMetamodel(java.version()).build());
+			return Optional.of(buildArtifact(m.version().name() + "PythonGen").withMetamodel(sourceCode.version()).build());
 		})
 		.build();
 	
@@ -144,6 +170,9 @@ public class Main {
 	
 	public static void main(String[] args) {
 		if (args.length > 0) {
+			if (args.length > 1 && "-d".equals(args[1])) {
+				debug = true;
+			}
 			if ("-h".equals(args[0]) || "--help".equals(args[0])) {
 				printHelp();
 			} else {
@@ -163,45 +192,61 @@ public class Main {
 	
 	private static void printHelp() {
 		log("Provide an integer as the first argument to run the workflow for an example ecosystem");
+		log("Use the -d flag as the second argument to get verbose output");
 		examples.forEach((i, e) -> log(String.format("%s: %s", i, e.description())));
 	}
 	
 	public static void example1() {
-		repo.addArtifacts(ecore, java, springBootPlatform, dotNetPlatform, pythonPlatform, microservice,
-			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
-			orderMicroservice, microserviceToPython);
-		log("### Relevant change:");
+		repo.addArtifacts(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline, springBootPlatform,
+			dotNetPlatform, pythonPlatform, microservice, microserviceToSpringBoot, microserviceToDotNet,
+			customerMicroservice, shoppingCartMicroservice, orderMicroservice, microserviceToPython);
+		log("### Changing microservice meta model and migrating Spring Boot generator manually:");
 		repo.addArtifact(microservice);
-
+		repo.addArtifact(copyArtifact(customerMicroservice).updateMetamodel(microservice.version().increment()).build());
+		repo.addArtifact(copyArtifact(microserviceToSpringBoot).updateDependency(microservice.version().increment()).build());
 	}
 
 	public static void example2() {
-		repo.addArtifacts(ecore, trafoMM, java, springBootPlatform, dotNetPlatform, pythonPlatform, coEvModelGen,
-			modelCoEvGen, trafoCoEvGen, microservice, microserviceToSpringBoot, microserviceToDotNet,
-			customerMicroservice, shoppingCartMicroservice, orderMicroservice, microserviceToPython);
+		repo.addArtifacts(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline,
+			springBootPlatform, dotNetPlatform, pythonPlatform, coEvModelGen, modelCoEvGen, trafoCoEvGen, microservice,
+			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
+			orderMicroservice, microserviceToPython);
 		// adding the meta model again will trigger the creation of a new version
-		log("### Relevant change:");
+		log("### Changing microservice meta model:");
 		repo.addArtifact(microservice);
+//		log("### Relevant change:");
+//		repo.addArtifact(microservice);
+//		log("### Relevant change:");
+//		repo.addArtifact(microservice);
+//		log("### Relevant change:");
+//		repo.addArtifact(microservice);
 	}
 
 	public static void example3() {
-		repo.addArtifacts(ecore, java, springBootPlatform, dotNetPlatform, pythonPlatform, microservice,
+		repo.addArtifacts(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline,
+			springBootPlatform, dotNetPlatform, pythonPlatform, coEvModelGen, modelCoEvGen, trafoCoEvGen, microservice,
 			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
 			orderMicroservice, microserviceToPython);
-		log("### Relevant change:");
+		log("### Changing Spring Boot platform:");
 		// update the platform
 		repo.addArtifact(springBootPlatform);
 		// update the generator
-		repo.addArtifact(copyArtifact(microserviceToSpringBoot).updateDependency(springBootPlatform.version().increment()).build());
+		repo.addArtifact(
+			copyArtifact(microserviceToSpringBoot).updateDependency(springBootPlatform.version().increment()).build());
 	}
 
 	public static void example4() {
-		repo.addArtifacts(ecore, trafoMM, java, springBootPlatform, dotNetPlatform, pythonPlatform, coEvModelGen,
-			modelCoEvGen, trafoCoEvGen, microservice, microserviceToSpringBoot, microserviceToDotNet,
-			customerMicroservice, shoppingCartMicroservice, orderMicroservice, microserviceToPython);
-		log("### Relevant change:");
-		// update the platform
-		repo.addArtifact(springBootPlatform);
+		repo.addArtifacts(executable, deploymentPipeline, sourceCode, ecore, trafoMM, java, javaBuildPipeline,
+			springBootPlatform, dotNetPlatform, pythonPlatform, coEvModelGen, modelCoEvGen, trafoCoEvGen, microservice,
+			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
+			orderMicroservice, microserviceToPython);
+		log("### Changing Java version and migrating Spring Boot platform, Java build pipeline and Spring Boot Generator manually:");
+		// update java
+		repo.addArtifact(java);
+		// manual co-evolution
+		repo.addArtifact(copyArtifact(springBootPlatform).updateMetamodel(java.version().increment()).build());
+		repo.addArtifact(copyArtifact(javaBuildPipeline).updateDependency(java.version().increment()).build());
+		repo.addArtifact(copyArtifact(microserviceToSpringBoot).updateDependency(springBootPlatform.version().increment()).build());
 	}
 	
 	public static void onChange(Repository repo, Artifact a) {
@@ -317,7 +362,10 @@ public class Main {
 		
 		@Override
 		public String toString() {
-			return String.format("%s; metamodels=%s; inputs=%s; outputs=%s", version, metamodels, inputs, outputs);
+			if (debug) {
+				return String.format("%s; metamodels=%s; inputs=%s; outputs=%s", version, metamodels, inputs, outputs);
+			}
+			return version.toString();
 		}
 		
 	}
@@ -364,7 +412,10 @@ public class Main {
 		
 		@Override
 		public String toString() {
-			return String.format("%s; changedArtifact=%s", super.toString(), changedArtifact);
+			if (debug) {
+				return String.format("%s; changedArtifact=%s", super.toString(), changedArtifact);
+			}
+			return super.toString();
 		}
 		
 	}
@@ -411,7 +462,11 @@ public class Main {
 		}
 		
 		public void addArtifact(Artifact a) {
-			Artifact newVersion = artifactsByVersion.containsKey(a.version()) ? copyArtifact(a).withVersion(a.version().increment()).build() : a;
+			ArtifactVersion version = a.version();
+			while (artifactsByVersion.containsKey(version)) {
+				version = version.increment();
+			}			
+			Artifact newVersion = copyArtifact(a).withVersion(version).build();
 			artifactsByVersion.put(newVersion.version(), newVersion);
 			log("[ADD] Added " + newVersion);
 			onChange(this, newVersion);
