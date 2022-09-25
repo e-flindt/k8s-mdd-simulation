@@ -18,10 +18,10 @@ public class Main {
 	private static final Map<Integer, Example> examples = new HashMap<>();
 	
 	static {
-		examples.put(1, new Example("Ecosystem with manual co-evolution support", Main::example1));
-		examples.put(2, new Example("Ecosystem with support for semi-automatic model and transformation co-evolution", Main::example2));
-		examples.put(3, new Example("Ecosystem with manual co-evolution support and platform changes", Main::example3));
-		examples.put(4, new Example("Ecosystem with support for semi-automatic model and transformation co-evolution and platform changes", Main::example4));
+		examples.put(1, new Example("Ecosystem with manual co-evolution support where a meta model is changed", Main::example1));
+		examples.put(2, new Example("Ecosystem with support for semi-automatic model and transformation co-evolution where a meta model is changed", Main::example2));
+		examples.put(3, new Example("Ecosystem with manual co-evolution support where a platform is changed", Main::example3));
+		examples.put(4, new Example("Ecosystem with support for semi-automatic model and transformation co-evolution where a platform is changed", Main::example4));
 	}
 	
 	private static final void log(String message) {
@@ -49,7 +49,7 @@ public class Main {
 		.withInput(microservice.version())
 		.withOutput(springBootPlatform.version())
 		.withTransformation(m -> {
-			log("Generating Spring Boot microservices for model " + m.version());
+			log("[M2T] Generating Spring Boot microservices for model " + m.version());
 			return Optional.of(buildArtifact(m.version().name() + "SpringBootGen").withMetamodel(java.version()).build());
 		})
 		.build();
@@ -58,7 +58,7 @@ public class Main {
 		.withInput(microservice.version())
 		.withOutput(dotNetPlatform.version())
 		.withTransformation(m -> {
-			log("Generating Dot Net microservices for model " + m.version());
+			log("[M2T] Generating Dot Net microservices for model " + m.version());
 			return Optional.of(buildArtifact(m.version().name() + "DotNetGen").withMetamodel(java.version()).build());
 		})
 		.build();
@@ -67,20 +67,22 @@ public class Main {
 		.withInput(microservice.version())
 		.withOutput(pythonPlatform.version())
 		.withTransformation(m -> {
-			log("Generating Python microservices for model " + m.version());
+			log("[M2T] Generating Python microservices for model " + m.version());
 			return Optional.of(buildArtifact(m.version().name() + "PythonGen").withMetamodel(java.version()).build());
 		})
 		.build();
 	
 	// co-evolution support
 	private static final Artifact coEvM = buildArtifact("coEvM").build();
-	private static final Artifact coEvModelGen = buildTransformation("coEvModelGen").withInput(ecore.version())
+	private static final Artifact coEvModelGen = buildTransformation("coEvModelGen")
+		.withInput(ecore.version())
+		.withOutput(coEvM.version())
 		.withTransformation(m -> {
 			if (m.version().isInitialVersion()) {
-				log("Don't create migration model for initial version of " + m.version());
+				log("[CoEv] Don't create migration model for initial version of " + m.version());
 				return Optional.empty();
 			}
-			log("Creating migration model for " + m.version());
+			log("[CoEv] Creating migration model for " + m.version());
 			return Optional.of(buildCoEvolutionModel(m.version().name() + "-coEvM").withMetamodel(coEvM.version()).withChangedArtifact(m.version()).build());
 		})
 		.build();
@@ -90,7 +92,7 @@ public class Main {
 		.withTransformation(m -> {
 			if (m instanceof CoEvolutionModel coev) {
 				ArtifactVersion changedArtifact = coev.getChangedArtifact();
-				log("Creating model migration for " + changedArtifact);
+				log("[CoEv] Creating model migration for " + changedArtifact);
 				return Optional.of(buildTransformation(changedArtifact.name() + "-model-migration")
 					// previous meta model version is the input
 					.withInput(changedArtifact.decrement())
@@ -99,7 +101,7 @@ public class Main {
 					.withTransformation(instance -> {
 						// instances that are not conform to the previous version must not be migrated
 						if (instance.getMetamodels().contains(changedArtifact.decrement())) {
-							log(String.format("Migrating model %s", instance.version()));
+							log(String.format("[M2M] Migrating model %s", instance.version()));
 							// the migration must update the meta model to the changed model
 							Artifact migratedInstance = copyArtifact(instance).updateMetamodel(changedArtifact).build();
 							return Optional.of(migratedInstance);
@@ -117,8 +119,10 @@ public class Main {
 		.withTransformation(m -> {
 			if (m instanceof CoEvolutionModel coev) {
 				ArtifactVersion changedArtifact = coev.getChangedArtifact();
-				log("Creating transformation migration for " + changedArtifact);
+				log("[CoEv] Creating transformation migration for " + changedArtifact);
 				return Optional.of(buildTransformation(changedArtifact.name() + "-transformation-migration")
+					// signals that this transformation transforms other transformation
+					// this is a higher order transformation
 					.withInput(trafoMM.version())
 					.withOutput(trafoMM.version())
 					.withTransformation(m1 -> {
@@ -126,7 +130,7 @@ public class Main {
 						// only transformations that are dependent on the previous version must be migrated
 						if (m1.getInputs().contains(changedArtifact.decrement())
 							|| m1.getOutputs().contains(changedArtifact.decrement())) {
-							log(String.format("Migrating transformation %s", m1.version()));
+							log(String.format("[M2M] Migrating transformation %s", m1.version()));
 							// the migration must update the dependency to the changed model
 							Artifact migratedTransformation = copyArtifact(m1).updateDependency(changedArtifact).build();
 							return Optional.of(migratedTransformation);
@@ -166,6 +170,7 @@ public class Main {
 		repo.addArtifacts(ecore, java, springBootPlatform, dotNetPlatform, pythonPlatform, microservice,
 			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
 			orderMicroservice, microserviceToPython);
+		log("### Relevant change:");
 		repo.addArtifact(microservice);
 
 	}
@@ -175,6 +180,7 @@ public class Main {
 			modelCoEvGen, trafoCoEvGen, microservice, microserviceToSpringBoot, microserviceToDotNet,
 			customerMicroservice, shoppingCartMicroservice, orderMicroservice, microserviceToPython);
 		// adding the meta model again will trigger the creation of a new version
+		log("### Relevant change:");
 		repo.addArtifact(microservice);
 	}
 
@@ -182,6 +188,7 @@ public class Main {
 		repo.addArtifacts(ecore, java, springBootPlatform, dotNetPlatform, pythonPlatform, microservice,
 			microserviceToSpringBoot, microserviceToDotNet, customerMicroservice, shoppingCartMicroservice,
 			orderMicroservice, microserviceToPython);
+		log("### Relevant change:");
 		// update the platform
 		repo.addArtifact(springBootPlatform);
 		// update the generator
@@ -192,13 +199,14 @@ public class Main {
 		repo.addArtifacts(ecore, trafoMM, java, springBootPlatform, dotNetPlatform, pythonPlatform, coEvModelGen,
 			modelCoEvGen, trafoCoEvGen, microservice, microserviceToSpringBoot, microserviceToDotNet,
 			customerMicroservice, shoppingCartMicroservice, orderMicroservice, microserviceToPython);
+		log("### Relevant change:");
 		// update the platform
 		repo.addArtifact(springBootPlatform);
 	}
 	
 	public static void onChange(Repository repo, Artifact a) {
 		for (ArtifactVersion metamodel : a.getMetamodels()) {
-			for (Transformation transformation : repo.getDependingTransformations(metamodel)) {
+			for (Transformation transformation : repo.getAcceptingTransformations(metamodel)) {
 				transformation.getTransformation().apply(a).ifPresent(repo::addArtifact);
 			}
 		}
@@ -309,8 +317,7 @@ public class Main {
 		
 		@Override
 		public String toString() {
-			return String.format("%s;%s\tmetamodels=%s;%s\tinputs=%s", version, System.lineSeparator(),
-				metamodels, System.lineSeparator(), inputs);
+			return String.format("%s; metamodels=%s; inputs=%s; outputs=%s", version, metamodels, inputs, outputs);
 		}
 		
 	}
@@ -357,7 +364,7 @@ public class Main {
 		
 		@Override
 		public String toString() {
-			return String.format("%s;%s\tchangedArtifact=%s", super.toString(), System.lineSeparator(), changedArtifact);
+			return String.format("%s; changedArtifact=%s", super.toString(), changedArtifact);
 		}
 		
 	}
@@ -382,6 +389,15 @@ public class Main {
 				.collect(Collectors.toSet());
 		}
 		
+		public Set<Transformation> getAcceptingTransformations(ArtifactVersion artifact) {
+			return artifactsByVersion.values().stream().map(Artifact::asTransformation)
+				// find any transformation that has declared the argument as an input
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.filter(t -> t.getInputs().contains(artifact))
+				.collect(Collectors.toSet());
+		}
+		
 		public Optional<Artifact> getByVersion(ArtifactVersion version) {
 			return Optional.ofNullable(artifactsByVersion.get(version));
 		}
@@ -397,7 +413,7 @@ public class Main {
 		public void addArtifact(Artifact a) {
 			Artifact newVersion = artifactsByVersion.containsKey(a.version()) ? copyArtifact(a).withVersion(a.version().increment()).build() : a;
 			artifactsByVersion.put(newVersion.version(), newVersion);
-			log("Added " + newVersion);
+			log("[ADD] Added " + newVersion);
 			onChange(this, newVersion);
 		}
 		
