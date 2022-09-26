@@ -162,14 +162,14 @@ public class Main {
 					// this is a higher order transformation
 					.withInput(trafoMM.version())
 					.withOutput(trafoMM.version())
-					.withTransformation(m1 -> {
+					.withTransformation(t -> {
 						// this condition is important to prevent a loop
 						// only transformations that are dependent on the previous version must be migrated
-						if (m1.getInputs().contains(changedArtifact.decrement())
-							|| m1.getOutputs().contains(changedArtifact.decrement())) {
-							log(String.format("[M2M] Migrating transformation %s", m1.version()));
+						if (t.getInputs().contains(changedArtifact.decrement())
+							|| t.getOutputs().contains(changedArtifact.decrement())) {
+							log(String.format("[M2M] Migrating transformation %s", t.version()));
 							// the migration must update the dependency to the changed model
-							Artifact migratedTransformation = copyArtifact(m1)
+							Artifact migratedTransformation = copyArtifact(t)
 								.updateDependency(changedArtifact).build();
 							return Optional.of(migratedTransformation);
 						}
